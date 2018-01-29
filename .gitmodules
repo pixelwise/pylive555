@@ -1,0 +1,3 @@
+[submodule "live555"]
+	path = live555
+	url = git@github.com:pixelwise/live555.git

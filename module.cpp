@@ -462,7 +462,16 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
     unsigned numSPropRecords;
     SPropRecord* sPropRecords = parseSPropParameterSets(fSubsession.fmtp_spropparametersets(), numSPropRecords);
     for(unsigned i=0;i<numSPropRecords;i++) {
-      PyObject *result = PyEval_CallFunction(frameCallback, "sy#iii", fSubsession.codecName(), sPropRecords[i].sPropBytes, sPropRecords[i].sPropLength, -1, -1, -1);
+      PyObject *result = PyEval_CallFunction(
+        frameCallback,
+        "sy#iiII",
+        fSubsession.codecName(),
+        sPropRecords[i].sPropBytes,
+        sPropRecords[i].sPropLength,
+        -1,
+        -1,
+        0,
+        0);
       if (result == NULL) {
         fprintf(stderr, "Exception in RTSP callback:\n");
         PyErr_PrintEx(1);
@@ -479,7 +488,22 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
 
   // TODO: can we somehow avoid ... making a full copy here:
   //printf("%d bytes\n", frameSize);fflush(stdout);
-  PyObject *result = PyEval_CallFunction(frameCallback, "sy#llI", fSubsession.codecName(), fReceiveBuffer, frameSize, presentationTime.tv_sec, presentationTime.tv_usec, durationInUS);
+  unsigned rtp_timestamp = 0, rtp_timestamp_frequency = 0;
+  if (fSubsession.rtpSource())
+  {
+    rtp_timestamp = fSubsession.rtpSource()->curPacketRTPTimestamp();
+    rtp_timestamp_frequency = fSubsession.rtpSource()->timestampFrequency(); 
+  }
+  PyObject *result = PyEval_CallFunction(
+    frameCallback,
+    "sy#llII",
+    fSubsession.codecName(),
+    fReceiveBuffer,
+    frameSize,
+    presentationTime.tv_sec,
+    presentationTime.tv_usec,
+    rtp_timestamp,
+    rtp_timestamp_frequency);
   if (result == NULL) {
     fprintf(stderr, "Exception in RTSP callback:");
     PyErr_PrintEx(1);

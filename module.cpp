@@ -426,7 +426,7 @@ StreamClientState::~StreamClientState() {
 // Implementation of "DummySink":
 
 // Define the size of the buffer that we'll use:
-#define DUMMY_SINK_RECEIVE_BUFFER_SIZE 1024*1024
+#define DUMMY_SINK_RECEIVE_BUFFER_SIZE 16*1024*1024
 
 DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, PyObject *frameCallback, char const* streamId, RTSPClient *rtspClient) {
   return new DummySink(env, subsession, frameCallback, streamId, rtspClient);

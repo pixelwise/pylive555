@@ -43,7 +43,7 @@ void setupNextSubsession(RTSPClient* rtspClient);
 // Used to shut down and close a stream (including its "RTSPClient" object):
 void shutdownStream(RTSPClient* rtspClient, int exitCode = 1);
 
-#define RTSP_CLIENT_VERBOSITY_LEVEL 0 // by default, print verbose output from each "RTSPClient"
+#define RTSP_CLIENT_VERBOSITY_LEVEL 1 // by default, print verbose output from each "RTSPClient"
 
 // If you don't want to see debugging output for each received frame, then comment out the following line:
 //#define DEBUG_PRINT_EACH_RECEIVED_FRAME 1

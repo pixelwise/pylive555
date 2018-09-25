@@ -489,21 +489,26 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
   // TODO: can we somehow avoid ... making a full copy here:
   //printf("%d bytes\n", frameSize);fflush(stdout);
   unsigned rtp_timestamp = 0, rtp_timestamp_frequency = 0;
-  if (fSubsession.rtpSource())
+  unsigned packets_lost_total = 0;
+  if (auto src = fSubsession.rtpSource())
   {
-    rtp_timestamp = fSubsession.rtpSource()->curPacketRTPTimestamp();
-    rtp_timestamp_frequency = fSubsession.rtpSource()->timestampFrequency(); 
+    rtp_timestamp = src->curPacketRTPTimestamp();
+    rtp_timestamp_frequency = src->timestampFrequency();
+    if (auto stats = src->receptionStatsDB().next(false))
+      packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();
   }
   PyObject *result = PyEval_CallFunction(
     frameCallback,
-    "sy#llII",
+    "sy#llIII",
     fSubsession.codecName(),
     fReceiveBuffer,
     frameSize,
     presentationTime.tv_sec,
     presentationTime.tv_usec,
     rtp_timestamp,
-    rtp_timestamp_frequency);
+    rtp_timestamp_frequency,
+    packets_lost_total
+  );
   if (result == NULL) {
     fprintf(stderr, "Exception in RTSP callback:");
     PyErr_PrintEx(1);

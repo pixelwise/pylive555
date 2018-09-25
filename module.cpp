@@ -494,7 +494,8 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
   {
     rtp_timestamp = src->curPacketRTPTimestamp();
     rtp_timestamp_frequency = src->timestampFrequency();
-    if (auto stats = src->receptionStatsDB().next(false))
+    auto stats_iter = RTPReceptionStatsDB::Iterator{src->receptionStatsDB()};
+    if (auto stats = stats_iter.next(false))
       packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();
   }
   PyObject *result = PyEval_CallFunction(

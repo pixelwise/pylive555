@@ -464,12 +464,13 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
     for(unsigned i=0;i<numSPropRecords;i++) {
       PyObject *result = PyEval_CallFunction(
         frameCallback,
-        "sy#iiII",
+        "sy#iiIII",
         fSubsession.codecName(),
         sPropRecords[i].sPropBytes,
         sPropRecords[i].sPropLength,
         -1,
         -1,
+        0,
         0,
         0);
       if (result == NULL) {

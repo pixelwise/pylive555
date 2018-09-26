@@ -56,16 +56,19 @@ static UsageEnvironment* env;
 static PyThreadState *threadState;
 
 // A function that outputs a string that identifies each stream (for debugging output).  Modify this if you wish:
-UsageEnvironment& operator<<(UsageEnvironment& env, const RTSPClient& rtspClient) {
+UsageEnvironment& operator<<(UsageEnvironment& env, const RTSPClient& rtspClient)
+{
     return env << "[URL:\"" << rtspClient.url() << "\"]: ";
 }
 
 // A function that outputs a string that identifies each subsession (for debugging output).  Modify this if you wish:
-UsageEnvironment& operator<<(UsageEnvironment& env, const MediaSubsession& subsession) {
+UsageEnvironment& operator<<(UsageEnvironment& env, const MediaSubsession& subsession)
+{
     return env << subsession.mediumName() << "/" << subsession.codecName();
 }
 
-void usage(UsageEnvironment& env, char const* progName) {
+void usage(UsageEnvironment& env, char const* progName)
+{
     env << "Usage: " << progName << " <rtsp-url-1> ... <rtsp-url-N>\n";
     env << "\t(where each <rtsp-url-i> is a \"rtsp://\" URL)\n";
 }
@@ -95,7 +98,7 @@ public:
         char const* rtspURL,
         PyObject* frameCallback,
         int verbosityLevel,
-        portNumBits tunnelOverHTTPPortNum
+        portNumBits tunnelOverHTTPPortNum = 0
     );
     virtual ~ourRTSPClient();
 public:
@@ -514,7 +517,7 @@ void DummySink::afterGettingFrame(
     {
         rtp_timestamp = src->curPacketRTPTimestamp();
         rtp_timestamp_frequency = src->timestampFrequency();
-        envir() << "handing over packet " << src->curPacketRTPSeqNum() << " to python " << std::endl;
+        envir() << "handing over packet " << src->curPacketRTPSeqNum() << " to python \n";
         auto stats_iter = RTPReceptionStatsDB::Iterator{src->receptionStatsDB()};
         if (auto stats = stats_iter.next(true))
             packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();

@@ -517,7 +517,6 @@ void DummySink::afterGettingFrame(
     {
         rtp_timestamp = src->curPacketRTPTimestamp();
         rtp_timestamp_frequency = src->timestampFrequency();
-        envir() << "handing over packet " << src->curPacketRTPSeqNum() << " to python \n";
         auto stats_iter = RTPReceptionStatsDB::Iterator{src->receptionStatsDB()};
         if (auto stats = stats_iter.next(true))
             packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();

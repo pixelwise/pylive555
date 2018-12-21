@@ -23,6 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 #include "liveMedia.hh"
 #include "BasicUsageEnvironment.hh"
+#include "DigestAuthentication.hh"
 
 // Forward function definitions:
 
@@ -549,10 +550,12 @@ static PyObject *
 startRTSP(PyObject *self, PyObject *args)
 {
   const char *rtspURL;
+  const char *username = NULL;
+  const char *password = NULL;
   PyObject *frameCallback;
   int useTCP = 1;
 
-  if (!PyArg_ParseTuple(args, "sO|i", &rtspURL, &frameCallback, &useTCP)) {
+  if (!PyArg_ParseTuple(args, "sO|i", &rtspURL, &username, &password, &frameCallback, &useTCP)) {
     return NULL;
   }
 
@@ -570,10 +573,15 @@ startRTSP(PyObject *self, PyObject *args)
   }
   rtspClient->scs.useTCP = useTCP != 0;
 
+  Authenticator* auth = NULL;
+  if (username && password) {
+      auth = new Authenticator(username, password);
+  }
+
   // Next, send a RTSP "DESCRIBE" command, to get a SDP description for the stream.
   // Note that this command - like all RTSP commands - is sent asynchronously; we do not block, waiting for a response.
   // Instead, the following function call returns immediately, and we handle the RTSP response later, from within the event loop:
-  rtspClient->sendDescribeCommand(continueAfterDESCRIBE); 
+  rtspClient->sendDescribeCommand(continueAfterDESCRIBE, auth);
 
   Py_INCREF(Py_None);
   return Py_None;

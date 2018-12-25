@@ -367,7 +367,7 @@ void shutdownStream(RTSPClient* rtspClient, int exitCode) {
     StreamClientState& scs = ((ourRTSPClient*)rtspClient)->scs; // alias
 
     // First, check whether any subsessions have still to be closed:
-    if (scs.session != NULL) { 
+    if (scs.session != NULL) {
         Boolean someSubsessionsWereActive = False;
         MediaSubsessionIterator iter(*scs.session);
         MediaSubsession* subsession;
@@ -514,12 +514,12 @@ void DummySink::afterGettingFrame(
 
     unsigned rtp_timestamp = 0, rtp_timestamp_frequency = 0;
     unsigned packets_lost_total = 0;
-    if (auto src = fSubsession.rtpSource())
+    if (RTPSource* src = fSubsession.rtpSource())
     {
         rtp_timestamp = src->curPacketRTPTimestamp();
         rtp_timestamp_frequency = src->timestampFrequency();
-        auto stats_iter = RTPReceptionStatsDB::Iterator{src->receptionStatsDB()};
-        if (auto stats = stats_iter.next(true))
+        RTPReceptionStatsDB::Iterator stats_iter = RTPReceptionStatsDB::Iterator(src->receptionStatsDB());
+        if (RTPReceptionStats* stats = stats_iter.next(true))
             packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();
     }
     PyObject *result = PyEval_CallFunction(
@@ -561,7 +561,7 @@ void DummySink::afterGettingFrame(
 #endif
     envir() << "\n";
 #endif
-    
+
     // Then continue, to request the next frame of data:
     continuePlaying();
 }
@@ -586,7 +586,7 @@ static PyObject* startRTSP(PyObject* self, PyObject* args)
     PyObject* frameCallback;
     int useTCP = 1;
 
-    if (!PyArg_ParseTuple(args, "sO|i", &rtspURL, &username, &password, &frameCallback, &useTCP)) {
+    if (!PyArg_ParseTuple(args, "sssO|i", &rtspURL, &username, &password, &frameCallback, &useTCP)) {
         return NULL;
     }
 
@@ -636,21 +636,23 @@ stopEventLoop(PyObject *self, PyObject *args)
 
 static PyMethodDef moduleMethods[] = {
     {
-        "startRTSP", 
+        "startRTSP",
         startRTSP,
         METH_VARARGS,
         "Start loading frames from the provided RTSP url. "
-        "First argument is the URL string (should be rtsp://username:password@host/...; "
-        "second argument is a callback function called once per received frame; "
-        "third agument is False if UDP transport should be used and True if TCP transport should be used."},
+        "First argument is the URL string; "
+        "Second argument is the username string; "
+        "Third argument is the password string; "
+        "Fourth argument is a callback function called once per received frame; "
+        "Fifth argument is False if UDP transport should be used and True if TCP transport should be used."},
     {
-        "runEventLoop", 
+        "runEventLoop",
         runEventLoop,
-        METH_NOARGS, 
+        METH_NOARGS,
         "Run the event loop."
     },
     {
-        "stopEventLoop", 
+        "stopEventLoop",
         stopEventLoop,
         METH_NOARGS,
         "Stop the event loop, which will cause runEventLoop (in another thread) to stop and return."

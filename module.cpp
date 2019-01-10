@@ -87,6 +87,7 @@ public:
     MediaSession* session;
     MediaSubsession* subsession;
     PyObject *frameCallback;
+    PyObject *shutdownCallback;
     TaskToken streamTimerTask;
     double duration;
 };
@@ -98,9 +99,11 @@ public:
         UsageEnvironment& env,
         char const* rtspURL,
         PyObject* frameCallback,
+        PyObject* shutdownCallback,
         int verbosityLevel,
         portNumBits tunnelOverHTTPPortNum = 0
     );
+    void shutdown();
     virtual ~ourRTSPClient();
 public:
     StreamClientState scs;
@@ -117,6 +120,7 @@ public:
         UsageEnvironment& env,
         MediaSubsession& subsession, // identifies the kind of data that's being received
         PyObject *frameCallback,
+        PyObject *shutdownCallback,
         char const* streamId = NULL, // identifies the stream itself (optional)
         RTSPClient *rtspClient = NULL
     );
@@ -126,6 +130,7 @@ private:
         UsageEnvironment& env,
         MediaSubsession& subsession,
         PyObject *frameCallback,
+        PyObject *shutdownCallback,
         char const* streamId,
         RTSPClient *rtspClient
     );
@@ -151,6 +156,7 @@ private:
 
 private:
     PyObject *frameCallback;
+    PyObject *shutdownCallback;
     u_int8_t* fReceiveBuffer;
     RTSPClient *fRTSPClient;
     MediaSubsession& fSubsession;
@@ -254,7 +260,7 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
         // (This will prepare the data sink to receive data; the actual flow of data from the client won't start happening until later,
         // after we've sent a RTSP "PLAY" command.)
 
-        scs.subsession->sink = DummySink::createNew(env, *scs.subsession, scs.frameCallback, rtspClient->url(), rtspClient);
+        scs.subsession->sink = DummySink::createNew(env, *scs.subsession, scs.frameCallback, scs.shutdownCallback, rtspClient->url(), rtspClient);
         // perhaps use your own custom "MediaSink" subclass instead
         if (scs.subsession->sink == NULL) {
             env << *rtspClient << "Failed to create a data sink for the \"" << *scs.subsession
@@ -394,6 +400,8 @@ void shutdownStream(RTSPClient* rtspClient, int exitCode) {
         }
     }
 
+    ((ourRTSPClient*)rtspClient)->shutdown();
+
     env << *rtspClient << "Closing the stream.\n";
     Medium::close(rtspClient);
     // Note that this will also cause this stream's "StreamClientState" structure to get reclaimed.
@@ -403,13 +411,26 @@ ourRTSPClient::ourRTSPClient(
     UsageEnvironment& env,
     char const* rtspURL,
     PyObject* frameCallback,
+    PyObject* shutdownCallback,
     int verbosityLevel,
     portNumBits tunnelOverHTTPPortNum
 )
 : RTSPClient(env, rtspURL, verbosityLevel, "", tunnelOverHTTPPortNum, -1)
 {
     Py_INCREF(frameCallback);
+    Py_INCREF(shutdownCallback);
     scs.frameCallback = frameCallback;
+    scs.shutdownCallback = shutdownCallback;
+}
+
+void ourRTSPClient::shutdown()
+{
+    PyEval_RestoreThread(threadState);
+    PyObject_CallFunction(
+        scs.shutdownCallback,
+        NULL
+    );
+    PyEval_SaveThread();
 }
 
 ourRTSPClient::~ourRTSPClient()
@@ -440,17 +461,18 @@ StreamClientState::~StreamClientState() {
 // Define the size of the buffer that we'll use:
 #define DUMMY_SINK_RECEIVE_BUFFER_SIZE 16*1024*1024
 
-DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, PyObject *frameCallback, char const* streamId, RTSPClient *rtspClient) {
-    return new DummySink(env, subsession, frameCallback, streamId, rtspClient);
+DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, PyObject *frameCallback, PyObject *shutdownCallback, char const* streamId, RTSPClient *rtspClient) {
+    return new DummySink(env, subsession, frameCallback, shutdownCallback, streamId, rtspClient);
 }
 
-DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, PyObject *frameCallbackIn, char const* streamId, RTSPClient *rtspClient)
+DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, PyObject *frameCallbackIn, PyObject *shutdownCallbackIn, char const* streamId, RTSPClient *rtspClient)
 : MediaSink(env)
 , fSubsession(subsession)
 {
     fStreamId = strDup(streamId);
     fReceiveBuffer = new u_int8_t[DUMMY_SINK_RECEIVE_BUFFER_SIZE];
     frameCallback = frameCallbackIn;
+    shutdownCallback = shutdownCallbackIn;
     fRTSPClient = rtspClient;
     first = 1;
 }
@@ -459,6 +481,7 @@ DummySink::~DummySink() {
     delete[] fReceiveBuffer;
     delete[] fStreamId;
     Py_DECREF(frameCallback);
+    Py_DECREF(shutdownCallback);
 }
 
 void DummySink::afterGettingFrame(
@@ -584,18 +607,24 @@ static PyObject* startRTSP(PyObject* self, PyObject* args)
     const char *username = NULL;
     const char *password = NULL;
     PyObject* frameCallback;
+    PyObject* shutdownCallback;
     int useTCP = 1;
 
-    if (!PyArg_ParseTuple(args, "sssO|i", &rtspURL, &username, &password, &frameCallback, &useTCP)) {
+    if (!PyArg_ParseTuple(args, "sssOO|i", &rtspURL, &username, &password, &frameCallback, &shutdownCallback, &useTCP)) {
         return NULL;
     }
 
     if (!PyCallable_Check(frameCallback)) {
-        PyErr_SetString(error, "callback must be a callable");
+        PyErr_SetString(error, "frame callback must be a callable");
         return NULL;
     }
 
-    ourRTSPClient* rtspClient = new ourRTSPClient(*env, rtspURL, frameCallback, RTSP_CLIENT_VERBOSITY_LEVEL);
+    if (!PyCallable_Check(shutdownCallback)) {
+        PyErr_SetString(error, "shutdown callback must be a callable");
+        return NULL;
+    }
+
+    ourRTSPClient* rtspClient = new ourRTSPClient(*env, rtspURL, frameCallback, shutdownCallback, RTSP_CLIENT_VERBOSITY_LEVEL);
     rtspClient->scs.useTCP = useTCP != 0;
 
     Authenticator* auth = NULL;
@@ -644,7 +673,8 @@ static PyMethodDef moduleMethods[] = {
         "Second argument is the username string; "
         "Third argument is the password string; "
         "Fourth argument is a callback function called once per received frame; "
-        "Fifth argument is False if UDP transport should be used and True if TCP transport should be used."},
+        "Fifth argument is a callback function called on shutdown; "
+        "Sixth argument is False if UDP transport should be used and True if TCP transport should be used."},
     {
         "runEventLoop",
         runEventLoop,

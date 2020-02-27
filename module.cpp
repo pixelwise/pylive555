@@ -162,6 +162,7 @@ private:
     MediaSubsession& fSubsession;
     char* fStreamId;
     int first;
+    unsigned lastTotalPacketsLost;
 };
 
 
@@ -475,6 +476,7 @@ DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, PyObjec
     shutdownCallback = shutdownCallbackIn;
     fRTSPClient = rtspClient;
     first = 1;
+    lastTotalPacketsLost = 0;
 }
 
 DummySink::~DummySink() {
@@ -542,8 +544,15 @@ void DummySink::afterGettingFrame(
         rtp_timestamp = src->curPacketRTPTimestamp();
         rtp_timestamp_frequency = src->timestampFrequency();
         RTPReceptionStatsDB::Iterator stats_iter = RTPReceptionStatsDB::Iterator(src->receptionStatsDB());
-        if (RTPReceptionStats* stats = stats_iter.next(true))
+        if (RTPReceptionStats* stats = stats_iter.next(true)) {
             packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();
+            // detect wrap-around
+            if (abs(packets_lost_total - lastTotalPacketsLost) > 4294967295) {
+                packets_lost_total = lastTotalPacketsLost;
+            } else {
+                lastTotalPacketsLost = packets_lost_total;
+            }
+        }
     }
     PyObject *result = PyEval_CallFunction(
         frameCallback,

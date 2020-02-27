@@ -547,7 +547,7 @@ void DummySink::afterGettingFrame(
         if (RTPReceptionStats* stats = stats_iter.next(true)) {
             packets_lost_total = stats->totNumPacketsExpected() - stats->totNumPacketsReceived();
             // detect wrap-around
-            if (abs(packets_lost_total - lastTotalPacketsLost) > 4294967295) {
+            if (packets_lost_total - lastTotalPacketsLost > 4294967295) {
                 packets_lost_total = lastTotalPacketsLost;
             } else {
                 lastTotalPacketsLost = packets_lost_total;
